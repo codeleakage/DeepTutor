@@ -5,6 +5,7 @@ import type { RefObject } from "react";
 import Image from "next/image";
 import {
   ArrowUp,
+  AtSign,
   BookOpen,
   ChevronDown,
   FilePlus2,
@@ -21,6 +22,7 @@ import AtMentionPopup from "@/components/chat/AtMentionPopup";
 import type { SelectedRecord } from "@/app/(workspace)/guide/types";
 import type { DeepQuestionFormConfig } from "@/lib/quiz-types";
 import type { MathAnimatorFormConfig } from "@/lib/math-animator-types";
+import type { VisualizeFormConfig } from "@/lib/visualize-types";
 import type { DeepResearchFormConfig, ResearchSource } from "@/lib/research-types";
 import { ReferenceChips } from "./ChatMessages";
 
@@ -33,6 +35,10 @@ const MathAnimatorConfigPanel = dynamic(
 );
 const ResearchConfigPanel = dynamic(
   () => import("@/components/research/ResearchConfigPanel"),
+  { ssr: false },
+);
+const VisualizeConfigPanel = dynamic(
+  () => import("@/components/visualize/VisualizeConfigPanel"),
   { ssr: false },
 );
 
@@ -74,10 +80,13 @@ export default function ChatComposer({
   capBtnRef,
   toolMenuRef,
   toolBtnRef,
+  refMenuRef,
+  refBtnRef,
   dragCounter,
   dragging,
   capMenuOpen,
   toolMenuOpen,
+  refMenuOpen,
   showAtPopup,
   hasMessages,
   input,
@@ -95,9 +104,11 @@ export default function ChatComposer({
   isResearchMode,
   isQuizMode,
   isMathAnimatorMode,
+  isVisualizeMode,
   quizConfig,
   quizPdf,
   mathAnimatorConfig,
+  visualizeConfig,
   researchConfig,
   researchValidationErrors,
   researchPanelCollapsed,
@@ -105,6 +116,7 @@ export default function ChatComposer({
   researchSources,
   onSetCapMenuOpen,
   onSetToolMenuOpen,
+  onSetRefMenuOpen,
   onSetShowAtPopup,
   onInputChange,
   onSetKB,
@@ -127,6 +139,7 @@ export default function ChatComposer({
   onChangeQuizConfig,
   onUploadQuizPdf,
   onChangeMathAnimatorConfig,
+  onChangeVisualizeConfig,
   onChangeResearchConfig,
   onToggleResearchCollapsed,
 }: {
@@ -136,10 +149,13 @@ export default function ChatComposer({
   capBtnRef: RefObject<HTMLButtonElement | null>;
   toolMenuRef: RefObject<HTMLDivElement | null>;
   toolBtnRef: RefObject<HTMLButtonElement | null>;
+  refMenuRef: RefObject<HTMLDivElement | null>;
+  refBtnRef: RefObject<HTMLButtonElement | null>;
   dragCounter: RefObject<number>;
   dragging: boolean;
   capMenuOpen: boolean;
   toolMenuOpen: boolean;
+  refMenuOpen: boolean;
   showAtPopup: boolean;
   hasMessages: boolean;
   input: string;
@@ -157,9 +173,11 @@ export default function ChatComposer({
   isResearchMode: boolean;
   isQuizMode: boolean;
   isMathAnimatorMode: boolean;
+  isVisualizeMode: boolean;
   quizConfig: DeepQuestionFormConfig;
   quizPdf: File | null;
   mathAnimatorConfig: MathAnimatorFormConfig;
+  visualizeConfig: VisualizeFormConfig;
   researchConfig: DeepResearchFormConfig;
   researchValidationErrors: Record<string, string>;
   researchPanelCollapsed: boolean;
@@ -167,6 +185,7 @@ export default function ChatComposer({
   researchSources: ResearchSourceDef[];
   onSetCapMenuOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
   onSetToolMenuOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
+  onSetRefMenuOpen: (open: boolean | ((prev: boolean) => boolean)) => void;
   onSetShowAtPopup: (open: boolean) => void;
   onInputChange: (value: string, cursorPos: number) => void;
   onSetKB: (kb: string) => void;
@@ -189,6 +208,7 @@ export default function ChatComposer({
   onChangeQuizConfig: (next: DeepQuestionFormConfig) => void;
   onUploadQuizPdf: (file: File | null) => void;
   onChangeMathAnimatorConfig: (next: MathAnimatorFormConfig) => void;
+  onChangeVisualizeConfig: (next: VisualizeFormConfig) => void;
   onChangeResearchConfig: (next: DeepResearchFormConfig) => void;
   onToggleResearchCollapsed: () => void;
 }) {
@@ -293,7 +313,9 @@ export default function ChatComposer({
               placeholder={
                 isMathAnimatorMode
                   ? t("Describe the math animation or storyboard you want...")
-                  : t("How can I help you today?")
+                  : isVisualizeMode
+                    ? t("Describe the chart or diagram you want to visualize...")
+                    : t("How can I help you today?")
               }
               className="w-full resize-none overflow-hidden bg-transparent text-[15px] leading-relaxed text-[var(--foreground)] outline-none placeholder:text-[var(--muted-foreground)]"
               style={{ transition: "height 0.15s ease-out", minHeight: 28 }}
@@ -420,6 +442,56 @@ export default function ChatComposer({
                     )}
                   </div>
                 ) : null}
+
+                <div className="relative flex items-center gap-0.5">
+                  <button
+                    ref={refBtnRef}
+                    onClick={() => onSetRefMenuOpen((v) => !v)}
+                    className="inline-flex shrink-0 items-center gap-1 py-1 px-1.5 text-[11px] font-medium text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)]"
+                  >
+                    <AtSign size={12} strokeWidth={1.7} />
+                    {t("Reference")}
+                    <ChevronDown size={10} className={`transition-transform ${refMenuOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  {(selectedNotebookRecords.length > 0 || selectedHistorySessions.length > 0) && (
+                    <span className="shrink-0 rounded-full bg-[var(--primary)]/10 px-1.5 py-px text-[9px] font-semibold text-[var(--primary)]">
+                      {selectedNotebookRecords.length + selectedHistorySessions.length}
+                    </span>
+                  )}
+                  {refMenuOpen && (
+                    <div
+                      ref={refMenuRef}
+                      className="absolute bottom-full left-0 z-50 mb-1.5 min-w-[180px] rounded-lg border border-[var(--border)] bg-[var(--card)] py-1 shadow-lg"
+                    >
+                      <button
+                        onClick={() => {
+                          onSetRefMenuOpen(false);
+                          onSelectNotebookPicker();
+                        }}
+                        className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px] text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)] hover:bg-[var(--muted)]/40"
+                      >
+                        <BookOpen size={13} strokeWidth={1.7} />
+                        <span className="flex-1 font-medium">{t("Notebook")}</span>
+                        {selectedNotebookRecords.length > 0 && (
+                          <span className="text-[10px] text-[var(--primary)]">{selectedNotebookRecords.length}</span>
+                        )}
+                      </button>
+                      <button
+                        onClick={() => {
+                          onSetRefMenuOpen(false);
+                          onSelectHistoryPicker();
+                        }}
+                        className="flex w-full items-center gap-2.5 px-3 py-1.5 text-left text-[12px] text-[var(--muted-foreground)] transition-colors hover:text-[var(--foreground)] hover:bg-[var(--muted)]/40"
+                      >
+                        <MessageSquare size={13} strokeWidth={1.7} />
+                        <span className="flex-1 font-medium">{t("Chat History")}</span>
+                        {selectedHistorySessions.length > 0 && (
+                          <span className="text-[10px] text-[var(--primary)]">{selectedHistorySessions.length}</span>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="ml-auto flex shrink-0 items-center gap-1.5">
@@ -464,7 +536,7 @@ export default function ChatComposer({
             </div>
           </div>
 
-          {(isQuizMode || isMathAnimatorMode || isResearchMode) && (
+          {(isQuizMode || isMathAnimatorMode || isVisualizeMode || isResearchMode) && (
             <div className="border-t border-[var(--border)]/15">
               {isQuizMode ? (
                 <QuizConfigPanel
@@ -477,6 +549,11 @@ export default function ChatComposer({
                 <MathAnimatorConfigPanel
                   value={mathAnimatorConfig}
                   onChange={onChangeMathAnimatorConfig}
+                />
+              ) : isVisualizeMode ? (
+                <VisualizeConfigPanel
+                  value={visualizeConfig}
+                  onChange={onChangeVisualizeConfig}
                 />
               ) : (
                 <ResearchConfigPanel

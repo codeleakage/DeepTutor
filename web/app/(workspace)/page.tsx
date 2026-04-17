@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import {
+  BarChart3,
   BrainCircuit,
   Clapperboard,
   Code2,
@@ -43,6 +44,11 @@ import {
   buildMathAnimatorWSConfig,
   type MathAnimatorFormConfig,
 } from "@/lib/math-animator-types";
+import {
+  DEFAULT_VISUALIZE_CONFIG,
+  buildVisualizeWSConfig,
+  type VisualizeFormConfig,
+} from "@/lib/visualize-types";
 import {
   buildResearchWSConfig,
   createEmptyResearchConfig,
@@ -152,6 +158,14 @@ const CAPABILITIES: CapabilityDef[] = [
     allowedTools: [],
     defaultTools: [],
   },
+  {
+    value: "visualize",
+    label: "Visualize",
+    description: "Generate SVG, Chart.js, or Mermaid visualizations",
+    icon: BarChart3,
+    allowedTools: [],
+    defaultTools: [],
+  },
 ];
 
 interface KnowledgeBase {
@@ -210,6 +224,9 @@ export default function HomePage() {
   const [mathAnimatorConfig, setMathAnimatorConfig] = useState<MathAnimatorFormConfig>({
     ...DEFAULT_MATH_ANIMATOR_CONFIG,
   });
+  const [visualizeConfig, setVisualizeConfig] = useState<VisualizeFormConfig>({
+    ...DEFAULT_VISUALIZE_CONFIG,
+  });
   const [researchConfig, setResearchConfig] = useState<DeepResearchFormConfig>(createEmptyResearchConfig());
   const [researchPanelCollapsed, setResearchPanelCollapsed] = useState(true);
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -217,6 +234,7 @@ export default function HomePage() {
   const [showHistoryPicker, setShowHistoryPicker] = useState(false);
   const [showAtPopup, setShowAtPopup] = useState(false);
   const [toolMenuOpen, setToolMenuOpen] = useState(false);
+  const [refMenuOpen, setRefMenuOpen] = useState(false);
   const [selectedNotebookRecords, setSelectedNotebookRecords] = useState<SelectedRecord[]>([]);
   const [selectedHistorySessions, setSelectedHistorySessions] = useState<SelectedHistorySession[]>([]);
   const dragCounter = useRef(0);
@@ -225,10 +243,13 @@ export default function HomePage() {
   const capBtnRef = useRef<HTMLButtonElement>(null);
   const toolMenuRef = useRef<HTMLDivElement>(null);
   const toolBtnRef = useRef<HTMLButtonElement>(null);
+  const refMenuRef = useRef<HTMLDivElement>(null);
+  const refBtnRef = useRef<HTMLButtonElement>(null);
 
   const activeCap = useMemo(() => getCapability(state.activeCapability), [state.activeCapability]);
   const isQuizMode = activeCap.value === "deep_question";
   const isMathAnimatorMode = activeCap.value === "math_animator";
+  const isVisualizeMode = activeCap.value === "visualize";
   const isResearchMode = activeCap.value === "deep_research";
   const selectedTools = useMemo(() => new Set(state.enabledTools), [state.enabledTools]);
   const ragActive = isResearchMode ? researchConfig.sources.includes("kb") : selectedTools.has("rag");
@@ -453,6 +474,12 @@ export default function HomePage() {
       ) {
         setToolMenuOpen(false);
       }
+      if (
+        refMenuRef.current && !refMenuRef.current.contains(t) &&
+        refBtnRef.current && !refBtnRef.current.contains(t)
+      ) {
+        setRefMenuOpen(false);
+      }
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -631,6 +658,9 @@ export default function HomePage() {
     if (isMathAnimatorMode) {
       config = buildMathAnimatorWSConfig(mathAnimatorConfig);
     }
+    if (isVisualizeMode) {
+      config = buildVisualizeWSConfig(visualizeConfig);
+    }
     if (isResearchMode) {
       config = buildResearchWSConfig(researchConfig);
     }
@@ -753,10 +783,13 @@ export default function HomePage() {
           capBtnRef={capBtnRef}
           toolMenuRef={toolMenuRef}
           toolBtnRef={toolBtnRef}
+          refMenuRef={refMenuRef}
+          refBtnRef={refBtnRef}
           dragCounter={dragCounter}
           dragging={dragging}
           capMenuOpen={capMenuOpen}
           toolMenuOpen={toolMenuOpen}
+          refMenuOpen={refMenuOpen}
           showAtPopup={showAtPopup}
           hasMessages={hasMessages}
           input={input}
@@ -774,9 +807,11 @@ export default function HomePage() {
           isResearchMode={isResearchMode}
           isQuizMode={isQuizMode}
           isMathAnimatorMode={isMathAnimatorMode}
+          isVisualizeMode={isVisualizeMode}
           quizConfig={quizConfig}
           quizPdf={quizPdf}
           mathAnimatorConfig={mathAnimatorConfig}
+          visualizeConfig={visualizeConfig}
           researchConfig={researchConfig}
           researchValidationErrors={researchValidation.errors}
           researchPanelCollapsed={researchPanelCollapsed}
@@ -784,6 +819,7 @@ export default function HomePage() {
           researchSources={RESEARCH_SOURCES}
           onSetCapMenuOpen={setCapMenuOpen}
           onSetToolMenuOpen={setToolMenuOpen}
+          onSetRefMenuOpen={setRefMenuOpen}
           onSetShowAtPopup={setShowAtPopup}
           onInputChange={(nextValue, cursorPos) => {
             setInput(nextValue);
@@ -829,6 +865,7 @@ export default function HomePage() {
           onChangeQuizConfig={setQuizConfig}
           onUploadQuizPdf={setQuizPdf}
           onChangeMathAnimatorConfig={setMathAnimatorConfig}
+          onChangeVisualizeConfig={setVisualizeConfig}
           onChangeResearchConfig={setResearchConfig}
           onToggleResearchCollapsed={() => setResearchPanelCollapsed((prev) => !prev)}
         />

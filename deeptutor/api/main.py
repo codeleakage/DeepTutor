@@ -14,23 +14,17 @@ from deeptutor.services.path_service import get_path_service
 logger = get_logger("API")
 
 
-class _ProgressWsAccessFilter(logging.Filter):
-    """Suppress noisy uvicorn access logs for progress WebSocket endpoints.
+class _SuppressWsNoise(logging.Filter):
+    """Suppress noisy uvicorn logs for WebSocket connection churn."""
 
-    These endpoints are polled every few seconds by the frontend for every KB,
-    generating hundreds of ``connection open`` / ``connection closed`` lines
-    that drown out useful output.
-    """
-
-    _SUPPRESSED_FRAGMENTS = ("progress/ws", "connection open", "connection closed")
+    _SUPPRESSED = ("connection open", "connection closed")
 
     def filter(self, record: logging.LogRecord) -> bool:
         msg = record.getMessage()
-        return not any(f in msg for f in self._SUPPRESSED_FRAGMENTS)
+        return not any(f in msg for f in self._SUPPRESSED)
 
 
-for _uv_name in ("uvicorn.access", "uvicorn.error"):
-    logging.getLogger(_uv_name).addFilter(_ProgressWsAccessFilter())
+logging.getLogger("uvicorn.error").addFilter(_SuppressWsNoise())
 
 CONFIG_DRIFT_ERROR_TEMPLATE = (
     "Configuration Drift Detected: Capability tool references {drift} are not "
@@ -152,6 +146,24 @@ app = FastAPI(
     redirect_slashes=False,
 )
 
+# Log only non-200 requests (uvicorn access_log is disabled in run_server.py)
+_access_logger = logging.getLogger("uvicorn.access")
+
+
+@app.middleware("http")
+async def selective_access_log(request, call_next):
+    response = await call_next(request)
+    if response.status_code != 200:
+        _access_logger.info(
+            '%s - "%s %s" %d',
+            request.client.host if request.client else "-",
+            request.method,
+            request.url.path,
+            response.status_code,
+        )
+    return response
+
+
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
@@ -202,6 +214,7 @@ from deeptutor.api.routers import (
     tutorbot,
     unified_ws,
     vision_solver,
+    question_notebook,
 )
 
 # Include routers
@@ -215,6 +228,7 @@ app.include_router(notebook.router, prefix="/api/v1/notebook", tags=["notebook"]
 app.include_router(guide.router, prefix="/api/v1/guide", tags=["guide"])
 app.include_router(memory.router, prefix="/api/v1/memory", tags=["memory"])
 app.include_router(sessions.router, prefix="/api/v1/sessions", tags=["sessions"])
+app.include_router(question_notebook.router, prefix="/api/v1/question-notebook", tags=["question-notebook"])
 app.include_router(settings.router, prefix="/api/v1/settings", tags=["settings"])
 app.include_router(system.router, prefix="/api/v1/system", tags=["system"])
 app.include_router(plugins_api.router, prefix="/api/v1/plugins", tags=["plugins"])
